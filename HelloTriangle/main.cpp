@@ -598,8 +598,29 @@ private:
         VkShaderModuleCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         createInfo.codeSize = code.size();
-        /* Vulkan mandates SPIR-V bytecode is stored in little-endian format */
+        /*
+         * Vulkan mandates SPIR-V bytecode is stored in host-endian format
+         *
+         * NOTE: Check the magic number of SPIR-V binaries to make sure the
+         * endianness is handled correctly. SPIR-V bytecode should match the
+         * host's endianness.
+         *
+         * ref: https://docs.vulkan.org/spec/latest/appendices/spirvenv.html#_versions_and_formats
+         */
         createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+        if (createInfo.codeSize < 4) {
+            std::runtime_error("invalid shader byte code, missing magic number!");
+        }
+
+        /*
+         * Magic number check
+         *
+         * ref: https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#Magic
+         */
+        if (*createInfo.pCode != 0x07230203) {
+            std::runtime_error("invalid magic number found in shader byte code!");
+        }
 
         VkShaderModule shaderModule;
         if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
